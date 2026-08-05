@@ -1,74 +1,17 @@
-name: Build AAB
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main, master ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Extract project zip
-        run: |
-          ls -la
-          if [ -f SkyMeterAndroid.zip ]; then unzip -o SkyMeterAndroid.zip; fi
-          if [ -f SkyMeterAndroid-1.zip ]; then unzip -o SkyMeterAndroid-1.zip; fi
-          if [ -d SkyMeterAndroid ]; then cp -r SkyMeterAndroid/* .; fi
-          ls -la
-          ls -la app || true
-          test -f app/build.gradle || exit 1
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - uses: android-actions/setup-android@v3
-
-      - name: Install SDK
-        run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-          yes | sdkmanager --licenses || true
-
-      - uses: gradle/actions/setup-gradle@v3
-
-      - run: echo "sdk.dir=$ANDROID_HOME" > local.properties
-
-      - name: Gradle wrapper
-        run: |
-          if [ ! -f ./gradlew ]; then gradle wrapper --gradle-version 8.2; fi
-          chmod +x ./gradlew
-
-      - name: Keystore
-        id: ks
-        run: |
-          mkdir -p keystore
-          keytool -genkeypair -v -keystore keystore/skymeter.jks \
-            -storepass skymeter123 -keypass skymeter123 -alias skymeter \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=SkyMeter, OU=Mobile, O=SkyMeter, L=City, ST=State, C=PK"
-          echo "pass=skymeter123" >> $GITHUB_OUTPUT
-          echo "alias=skymeter" >> $GITHUB_OUTPUT
-          echo "kpass=skymeter123" >> $GITHUB_OUTPUT
-
-      - name: Build AAB
+- name: Build APK and AAB
         env:
           SKYMETER_KEYSTORE: ${{ github.workspace }}/keystore/skymeter.jks
           SKYMETER_STORE_PASSWORD: ${{ steps.ks.outputs.pass }}
           SKYMETER_KEY_ALIAS: ${{ steps.ks.outputs.alias }}
           SKYMETER_KEY_PASSWORD: ${{ steps.ks.outputs.kpass }}
-        run: ./gradlew bundleRelease --stacktrace
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SkyMeter-release-apk
+          path: app/build/outputs/apk/release/*.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: SkyMeter-release-aab
           path: app/build/outputs/bundle/release/*.aab
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SkyMeter-keystore
-          path: keystore/skymeter.jks
-          retention-days: 90
