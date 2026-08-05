@@ -11,6 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract project zip
+        run: |
+          ls -la
+          if [ -f SkyMeterAndroid.zip ]; then unzip -o SkyMeterAndroid.zip; fi
+          if [ -f SkyMeterAndroid-1.zip ]; then unzip -o SkyMeterAndroid-1.zip; fi
+          if [ -d SkyMeterAndroid ]; then cp -r SkyMeterAndroid/* .; fi
+          ls -la
+          ls -la app || true
+          test -f app/build.gradle || exit 1
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
