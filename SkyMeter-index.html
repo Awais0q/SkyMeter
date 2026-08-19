@@ -3681,6 +3681,71 @@
       filter: contrast(1.12) saturate(0.88) brightness(0.98);
     }
 
+
+    /* ===== Thermometer-style first-run onboarding ===== */
+    #onboardRoot{
+      position:fixed;inset:0;z-index:100000;
+      background:#f1f5f9;color:#0f172a;
+      display:none;flex-direction:column;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    }
+    #onboardRoot.show{display:flex}
+    .ob-dots{display:flex;gap:6px;justify-content:center;padding:14px 0 8px}
+    .ob-dots span{width:8px;height:8px;border-radius:50%;background:#cbd5e1}
+    .ob-dots span.on{background:#3b82f6;width:18px;border-radius:4px}
+    .ob-hero{
+      flex:1;min-height:42vh;position:relative;
+      background:url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=1200&auto=format&fit=crop') center/cover no-repeat;
+      display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;
+    }
+    .ob-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(15,23,42,.45))}
+    .ob-glass{
+      position:relative;z-index:1;width:100%;max-width:340px;
+      background:rgba(255,255,255,.88);backdrop-filter:blur(12px);
+      border-radius:20px;padding:20px 18px;text-align:center;
+      box-shadow:0 8px 32px rgba(0,0,0,.12);
+    }
+    .ob-glass .ob-icon{font-size:2.4rem;margin-bottom:8px}
+    .ob-glass .ob-temp{font-size:2.8rem;font-weight:300;letter-spacing:-1px}
+    .ob-panel{
+      background:#f8fafc;padding:28px 22px 20px;text-align:center;
+      border-radius:28px 28px 0 0;margin-top:-18px;position:relative;z-index:2;
+      box-shadow:0 -4px 24px rgba(0,0,0,.06);flex-shrink:0;
+    }
+    .ob-badge{
+      width:52px;height:52px;border-radius:50%;background:#3b82f6;color:#fff;
+      display:flex;align-items:center;justify-content:center;font-size:1.4rem;
+      margin:-42px auto 14px;box-shadow:0 6px 20px rgba(59,130,246,.4);
+    }
+    .ob-panel h2{font-size:1.25rem;font-weight:700;margin:0 0 10px;color:#0f172a}
+    .ob-panel p{font-size:.9rem;color:#64748b;line-height:1.45;margin:0 0 22px}
+    .ob-next{
+      display:block;width:100%;max-width:280px;margin:0 auto;
+      background:#2563eb;color:#fff;border:none;border-radius:14px;
+      padding:14px 20px;font-size:1rem;font-weight:700;cursor:pointer;
+      letter-spacing:.5px;
+    }
+    .ob-next:active{opacity:.9}
+    .ob-lang-list{flex:1;overflow-y:auto;padding:12px 16px 100px;background:#f1f5f9}
+    .ob-lang-item{
+      display:flex;align-items:center;gap:12px;padding:14px 16px;
+      background:#fff;border-radius:14px;margin-bottom:8px;
+      border:2px solid transparent;cursor:pointer;
+    }
+    .ob-lang-item.on{border-color:#3b82f6;background:#eff6ff}
+    .ob-lang-item .flag{font-size:1.3rem}
+    .ob-lang-item .name{flex:1;font-weight:600;font-size:.95rem}
+    .ob-lang-item .radio{width:20px;height:20px;border-radius:50%;border:2px solid #cbd5e1}
+    .ob-lang-item.on .radio{border-color:#3b82f6;background:#3b82f6;box-shadow:inset 0 0 0 4px #fff}
+    .ob-top{display:flex;justify-content:space-between;align-items:center;padding:16px 18px 8px}
+    .ob-top h1{font-size:1.15rem;font-weight:700}
+    .ob-check{
+      width:40px;height:40px;border-radius:50%;background:#2563eb;color:#fff;border:none;
+      font-size:1.2rem;cursor:pointer;
+    }
+    .ob-step{display:none;flex-direction:column;height:100%}
+    .ob-step.on{display:flex}
+
   </style>
 </head>
 <body>
@@ -3690,6 +3755,67 @@
     <span class="ptr-spin">↻</span>
     <span>Refreshing…</span>
   </div>
+
+
+<div id="onboardRoot" aria-hidden="true">
+  <!-- Step 0: Language -->
+  <div class="ob-step" data-ob="0">
+    <div class="ob-top"><h1>Select Language</h1><button type="button" class="ob-check" id="obLangOk">✓</button></div>
+    <div class="ob-dots"><span class="on"></span><span></span><span></span><span></span></div>
+    <div class="ob-lang-list" id="obLangList"></div>
+  </div>
+  <!-- Step 1: Indoor / sensor -->
+  <div class="ob-step" data-ob="1">
+    <div class="ob-dots"><span></span><span class="on"></span><span></span><span></span></div>
+    <div class="ob-hero">
+      <div class="ob-glass">
+        <div class="ob-icon">🌡️</div>
+        <div class="ob-temp">— °C</div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:4px">INSIDE</div>
+      </div>
+    </div>
+    <div class="ob-panel">
+      <div class="ob-badge">°C</div>
+      <h2>Turn your phone into a weather station</h2>
+      <p>SkyMeter uses your phone sensors and live weather data for indoor feel and outdoor conditions — private, fast, and free.</p>
+      <button type="button" class="ob-next" data-ob-next>NEXT</button>
+    </div>
+  </div>
+  <!-- Step 2: Location education -->
+  <div class="ob-step" data-ob="2">
+    <div class="ob-dots"><span></span><span></span><span class="on"></span><span></span></div>
+    <div class="ob-hero">
+      <div class="ob-glass">
+        <div class="ob-icon">📍</div>
+        <div style="font-weight:700;font-size:1.05rem">Outdoor weather</div>
+        <div style="font-size:.8rem;color:#64748b;margin-top:6px">Accurate local temperature, rain & radar</div>
+      </div>
+    </div>
+    <div class="ob-panel">
+      <div class="ob-badge">📍</div>
+      <h2>Allow Location for Outdoor Weather</h2>
+      <p>Allow SkyMeter to use your location for the most accurate outdoor temperature, forecast, and live radar near you.</p>
+      <button type="button" class="ob-next" id="obLocNext">NEXT</button>
+    </div>
+  </div>
+  <!-- Step 3: Notifications -->
+  <div class="ob-step" data-ob="3">
+    <div class="ob-dots"><span></span><span></span><span></span><span class="on"></span></div>
+    <div class="ob-hero">
+      <div class="ob-glass">
+        <div class="ob-icon">⛈️</div>
+        <div style="font-weight:700">Weather alerts</div>
+        <div style="font-size:.8rem;color:#64748b;margin-top:6px">Storms, rain & daily updates</div>
+      </div>
+    </div>
+    <div class="ob-panel">
+      <div class="ob-badge">🔔</div>
+      <h2>Get instant weather updates</h2>
+      <p>Turn on notifications to stay informed with the latest weather updates and severe alerts.</p>
+      <button type="button" class="ob-next" id="obNotifStart">START</button>
+    </div>
+  </div>
+</div>
 
 <div id="bootSplash"><div class="logo" style="display:flex;flex-direction:column;align-items:center;gap:10px"><img src="icon-192.png" alt="SkyMeter" width="72" height="72" style="width:72px;height:72px;border-radius:20px;box-shadow:0 12px 40px rgba(59,130,246,.4);object-fit:cover" onerror="this.style.display='none'"/><span>SkyMeter</span></div><div class="spin"></div></div>
 <script>
@@ -7665,6 +7791,117 @@ function openLayerSheet(show) {
   }
   setTimeout(hideBootSplash, 1500); // safety max
 
+
+  // ===== First-run onboarding (Thermometer-style flow) =====
+  var _obStep = 0;
+  var _obLang = 'en';
+  function showOnboardStep(n) {
+    _obStep = n;
+    var root = document.getElementById('onboardRoot');
+    if (!root) return;
+    root.querySelectorAll('.ob-step').forEach(function(el) {
+      el.classList.toggle('on', String(el.getAttribute('data-ob')) === String(n));
+    });
+  }
+  function finishOnboard() {
+    try { localStorage.setItem('skymeter_onboard_done', '1'); } catch(e) {}
+    var root = document.getElementById('onboardRoot');
+    if (root) {
+      root.classList.remove('show');
+      root.setAttribute('aria-hidden', 'true');
+    }
+    try { hideBootSplash(); } catch(e) {}
+    try { bootWeather(); } catch(e) {}
+  }
+  function startOnboardIfNeeded() {
+    try {
+      if (localStorage.getItem('skymeter_onboard_done') === '1') return false;
+    } catch(e) {}
+    var root = document.getElementById('onboardRoot');
+    if (!root) return false;
+    // Build language list
+    var list = document.getElementById('obLangList');
+    if (list && !list.children.length) {
+      var langs = [
+        {code:'system', name:'System default', flag:'🌐'},
+        {code:'en', name:'English', flag:'🇬🇧'},
+        {code:'ur', name:'اردو', flag:'🇵🇰'},
+        {code:'hi', name:'हिन्दी', flag:'🇮🇳'},
+        {code:'ar', name:'العربية', flag:'🇸🇦'},
+        {code:'fr', name:'Français', flag:'🇫🇷'},
+        {code:'de', name:'Deutsch', flag:'🇩🇪'},
+        {code:'es', name:'Español', flag:'🇪🇸'},
+        {code:'zh', name:'中文', flag:'🇨🇳'},
+        {code:'tr', name:'Türkçe', flag:'🇹🇷'}
+      ];
+      list.innerHTML = langs.map(function(L, i) {
+        return '<div class="ob-lang-item' + (i === 1 ? ' on' : '') + '" data-code="' + L.code + '">' +
+          '<span class="flag">' + L.flag + '</span><span class="name">' + L.name + '</span><span class="radio"></span></div>';
+      }).join('');
+      list.querySelectorAll('.ob-lang-item').forEach(function(item) {
+        item.onclick = function() {
+          list.querySelectorAll('.ob-lang-item').forEach(function(x){ x.classList.remove('on'); });
+          item.classList.add('on');
+          _obLang = item.getAttribute('data-code') || 'en';
+        };
+      });
+    }
+    root.classList.add('show');
+    root.setAttribute('aria-hidden', 'false');
+    showOnboardStep(0);
+    try { hideBootSplash(); } catch(e) {}
+    return true;
+  }
+  function requestSkyLocationFromOnboard() {
+    // Soft in-app feel then system dialog via geolocation
+    if (!navigator.geolocation) { showOnboardStep(3); return; }
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        try {
+          localStorage.setItem('skymeter_gps', JSON.stringify({
+            lat: pos.coords.latitude, lon: pos.coords.longitude,
+            city: 'My location', country: '', ts: Date.now()
+          }));
+        } catch(e) {}
+        showOnboardStep(3);
+      },
+      function() { showOnboardStep(3); },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  }
+  function requestSkyNotifications() {
+    try {
+      if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+        Notification.requestPermission().finally(function(){ finishOnboard(); });
+        return;
+      }
+    } catch(e) {}
+    // Android 13+ may need native permission — JS bridge optional
+    try {
+      if (window.SkyMeterNative && typeof window.SkyMeterNative.requestNotifications === 'function') {
+        window.SkyMeterNative.requestNotifications();
+      }
+    } catch(e) {}
+    finishOnboard();
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var ok = document.getElementById('obLangOk');
+    if (ok) ok.onclick = function() {
+      try {
+        if (_obLang && _obLang !== 'system') localStorage.setItem('skymeter_lang', _obLang);
+      } catch(e) {}
+      try { if (typeof setLanguage === 'function' && _obLang !== 'system') setLanguage(_obLang); } catch(e) {}
+      showOnboardStep(1);
+    };
+    document.querySelectorAll('[data-ob-next]').forEach(function(btn) {
+      btn.onclick = function() { showOnboardStep(2); };
+    });
+    var loc = document.getElementById('obLocNext');
+    if (loc) loc.onclick = function() { requestSkyLocationFromOnboard(); };
+    var st = document.getElementById('obNotifStart');
+    if (st) st.onclick = function() { requestSkyNotifications(); };
+  });
+
   // One-time: clear stale GPS cache that auto-forced cities (e.g. Sialkot) without permission flow
   try {
     if (!localStorage.getItem('skymeter_gps_cache_cleared_v2')) {
@@ -7673,20 +7910,23 @@ function openLayerSheet(show) {
     }
   } catch (e) {}
 
-  // Request location early → system permission dialog, then weather + map center
+  // First-run onboarding (language → location → notifications); else normal boot
   setTimeout(function(){
+    try {
+      if (startOnboardIfNeeded()) return;
+    } catch(e) {}
     try {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           function(){ try { bootWeather(); } catch(e){} try { centerMapOnUserLocation(); } catch(e){} },
           function(){ try { bootWeather(); } catch(e){} },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       } else {
         bootWeather();
       }
     } catch(e) { try { bootWeather(); } catch(e2){} }
-  }, 300);
+  }, 280);
   // Also expose for Android permission callback
   window.onAndroidLocationGranted = function() {
     try { centerMapOnUserLocation(); } catch(e) {}
