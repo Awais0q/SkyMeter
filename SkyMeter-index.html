@@ -5621,6 +5621,9 @@ console.error = function(){ if(__DEBUG) __origError.apply(console, arguments); }
   let liveDaily = [];
 
   async function fetchWeatherForCoords(lat, lon) {
+    lat = Number(lat); lon = Number(lon);
+    if (isNaN(lat) || isNaN(lon)) throw new Error('invalid coords');
+    console.log('[SkyMeter weather] request coords', lat, lon);
     try {
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
         '&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure,is_day' +
@@ -5715,6 +5718,7 @@ console.error = function(){ if(__DEBUG) __origError.apply(console, arguments); }
         }
       }
 
+      console.log('[SkyMeter weather] response', lat, lon, 'temp=', cur.temperature_2m);
       return {
         lat: lat,
         lon: lon,
@@ -6100,32 +6104,32 @@ console.error = function(){ if(__DEBUG) __origError.apply(console, arguments); }
     });
   }
 
+
   async function getBestPosition() {
-    // 1) Fast network / cached (works indoors)
+    // Always prefer fresh high-accuracy GPS (never stale network/city-level fix first)
     try {
       return await getPositionOnce({
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 120000
+        enableHighAccuracy: true,
+        timeout: 25000,
+        maximumAge: 0
       });
     } catch (e1) {
-      console.warn('geo low-accuracy', e1 && e1.code);
+      console.warn('[SkyMeter GPS] high-accuracy failed', e1 && e1.code, e1 && e1.message);
     }
-    // 2) High accuracy GPS
     try {
       return await getPositionOnce({
-        enableHighAccuracy: true,        timeout: 20000,
-        maximumAge: 60000
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 30000
       });
     } catch (e2) {
-      console.warn('geo high-accuracy', e2 && e2.code);
+      console.warn('[SkyMeter GPS] retry failed', e2 && e2.code);
     }
-    // 3) Very old cache if any
     try {
       return await getPositionOnce({
         enableHighAccuracy: false,
-        timeout: 5000,
-        maximumAge: 3600000
+        timeout: 10000,
+        maximumAge: 60000
       });
     } catch (e3) {
       throw e3;
@@ -6146,16 +6150,21 @@ console.error = function(){ if(__DEBUG) __origError.apply(console, arguments); }
       }
 
       var pos = await getBestPosition();
-      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      var lat = Number(pos.coords.latitude), lon = Number(pos.coords.longitude);
+      var acc = pos.coords.accuracy;
+      console.log('[SkyMeter GPS] fix', lat, lon, 'accuracy_m=', acc);
+      // Weather MUST use exact GPS coords only (never city/tehsil name)
       var w = await fetchWeatherForCoords(lat, lon);
       var city = 'My location', country = '';
       try { var place = await resolvePlaceName(lat, lon); city = place.city; country = place.country; } catch (e) {}
-      var c = Object.assign({}, w, { city: city, country: country, lat: lat, lon: lon });
+      var c = Object.assign({}, w, { city: city, country: country, lat: lat, lon: lon, source: 'gps', accuracy: acc });
       selectedCity = c;
+      try { setOutsideLocationName(city, country); } catch (e) {}
       updateMyLocationCard(c);
       applyWeatherToUI(c);
+      try { updateExtras(w); } catch (e) {}
       try {
-        localStorage.setItem('skymeter_gps', JSON.stringify({ city: city, country: country, lat: lat, lon: lon, ts: Date.now() }));
+        localStorage.setItem('skymeter_gps', JSON.stringify({ city: city, country: country, lat: lat, lon: lon, ts: Date.now(), accuracy: acc }));
         localStorage.removeItem('skymeter_manual_city');
       } catch (e) {}
       if (typeof goBack === 'function') {
@@ -7524,55 +7533,56 @@ function openLayerSheet(show) {
   }
 
   
+
   async function resolvePlaceName(lat, lon) {
     var city = 'My location', country = '';
+    // Nominatim first — better village/neighbourhood names (display only)
+    try {
+      var nurl = 'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon +
+        '&format=json&addressdetails=1&zoom=16&accept-language=en';
+      var nr = await fetch(nurl, { headers: { 'Accept': 'application/json' } });
+      var nj = await nr.json();
+      var a = nj.address || {};
+      country = a.country || country;
+      var order = [a.village, a.hamlet, a.suburb, a.neighbourhood, a.quarter, a.town, a.city_district, a.city, a.municipality, a.county, a.state];
+      for (var i = 0; i < order.length; i++) {
+        if (order[i] && String(order[i]).trim().length > 1) {
+          city = String(order[i]).trim();
+          break;
+        }
+      }
+      if (city === 'My location' && nj.name) city = String(nj.name).split(',')[0].trim();
+    } catch (eN) {
+      console.warn('[SkyMeter geo] nominatim', eN);
+    }
+    // BigDataCloud fill gaps
     try {
       var r2 = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=en');
       var j = await r2.json();
-      country = j.countryName || '';
-      var candidates = [];
-      if (j.locality) candidates.push(j.locality);
-      if (j.city) candidates.push(j.city);
-      try {
-        var adm = (j.localityInfo && j.localityInfo.administrative) ? j.localityInfo.administrative.slice() : [];
-        adm.sort(function(a, b) { return (b.adminLevel || 0) - (a.adminLevel || 0); });
-        adm.forEach(function(a) {
-          if (a && a.name && a.name.length > 1) candidates.push(a.name);
-        });
-      } catch (e) {}
-      if (j.principalSubdivision) candidates.push(j.principalSubdivision);
-      var best = '';
-      for (var i = 0; i < candidates.length; i++) {
-        var n = String(candidates[i]).trim();
-        if (!n) continue;
-        var lower = n.toLowerCase();
-        if (lower === 'pakistan' || lower === 'india') continue;
-        if (/tehsil|district|division|province|county|region/i.test(n) && candidates.length > 1) continue;
-        best = n;
-        break;
-      }
-      if (!best) {
+      if (!country) country = j.countryName || '';
+      if (city === 'My location' || /tehsil|district/i.test(city)) {
+        var candidates = [];
+        if (j.locality) candidates.push(j.locality);
+        if (j.city) candidates.push(j.city);
+        try {
+          var adm = (j.localityInfo && j.localityInfo.administrative) ? j.localityInfo.administrative.slice() : [];
+          adm.sort(function(a, b) { return (b.adminLevel || 0) - (a.adminLevel || 0); });
+          adm.forEach(function(a) { if (a && a.name) candidates.push(a.name); });
+        } catch (e) {}
         for (var k = 0; k < candidates.length; k++) {
-          if (candidates[k]) { best = String(candidates[k]); break; }
+          var n = String(candidates[k] || '').trim();
+          if (!n || /pakistan|india/i.test(n)) continue;
+          if (/tehsil|district|division|province/i.test(n)) continue;
+          city = n;
+          break;
         }
       }
-      best = String(best || '').replace(/\s+(Tehsil|District|Division)\s*$/i, '').trim();
-      if (best) city = best;
     } catch (e) {}
-    try {
-      var om = await fetch('https://geocoding-api.open-meteo.com/v1/reverse?latitude=' + lat + '&longitude=' + lon + '&language=en&format=json');
-      var oj = await om.json();
-      var name = '';
-      if (oj && oj.name) name = oj.name;
-      else if (oj && oj.results && oj.results[0]) name = oj.results[0].name || '';
-      if (name && name.length >= 2 && name.length <= 48) {
-        if (/tehsil|district|my location/i.test(city) || city === 'My location') city = name;
-        else if (name.length <= city.length + 4) city = name;
-      }
-      if (!country && oj && oj.country) country = oj.country;
-    } catch (e2) {}
+    city = String(city || 'My location').replace(/\s+(Tehsil|District|Division)\s*$/i, '').trim();
+    console.log('[SkyMeter place]', lat, lon, '→', city, country);
     return { city: city, country: country };
   }
+
 
   async function bootWeather(){
     // Show dashboard immediately — never leave fake 31.7 forever without trying
@@ -7614,7 +7624,9 @@ function openLayerSheet(show) {
             maximumAge: 0
           });
         });
-        var lat = pos.coords.latitude, lon = pos.coords.longitude;
+        var lat = Number(pos.coords.latitude), lon = Number(pos.coords.longitude);
+        console.log('[SkyMeter GPS boot]', lat, lon, 'acc=', pos.coords.accuracy);
+        // Display name only — weather inside loadAt uses lat/lon only
         var city = 'My location', country = '';
         try { var place = await resolvePlaceName(lat, lon); city = place.city; country = place.country; } catch (e) {}
         await loadAt(lat, lon, city, country, 'gps');
@@ -7980,6 +7992,46 @@ function openLayerSheet(show) {
     } catch(e) { try { bootWeather(); } catch(e2){} }
   }, 280);
   // Also expose for Android permission callback
+
+  var _gpsWatchId = null;
+  function startGpsWeatherWatch() {
+    if (!navigator.geolocation || _gpsWatchId != null) return;
+    _gpsWatchId = navigator.geolocation.watchPosition(
+      function(pos) {
+        try {
+          var lat = Number(pos.coords.latitude), lon = Number(pos.coords.longitude);
+          var prev = selectedCity || {};
+          var moved = true;
+          if (prev.lat != null && prev.lon != null) {
+            var dlat = (lat - Number(prev.lat)) * 111000;
+            var dlon = (lon - Number(prev.lon)) * 111000 * Math.cos(lat * Math.PI / 180);
+            var dist = Math.sqrt(dlat * dlat + dlon * dlon);
+            moved = dist > 400; // ~400m
+          }
+          if (!moved) return;
+          console.log('[SkyMeter GPS] moved, refresh weather', lat, lon);
+          fetchWeatherForCoords(lat, lon).then(function(w) {
+            return resolvePlaceName(lat, lon).then(function(place) {
+              selectedCity = Object.assign({}, w, { city: place.city, country: place.country, lat: lat, lon: lon, source: 'gps-watch' });
+              applyWeatherToUI(w);
+              try { updateExtras(w); } catch (e) {}
+              try { setOutsideLocationName(place.city, place.country); } catch (e) {}
+              updateMyLocationCard(selectedCity);
+              try {
+                localStorage.setItem('skymeter_gps', JSON.stringify({
+                  city: place.city, country: place.country, lat: lat, lon: lon, ts: Date.now()
+                }));
+              } catch (e) {}
+            });
+          }).catch(function(e) { console.warn(e); });
+        } catch (e) {}
+      },
+      function() {},
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
+    );
+  }
+  setTimeout(function(){ try { startGpsWeatherWatch(); } catch(e) {} }, 5000);
+
   window.onAndroidLocationGranted = function() {
     try { centerMapOnUserLocation(); } catch(e) {}
     try { bootWeather(); } catch(e) {}
